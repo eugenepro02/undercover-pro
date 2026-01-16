@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Undercover Pro</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        /* --- STYLING --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1c1c1e; color: #ffffff;
+            margin: 0; padding: 20px; text-align: center;
+            min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+        }
+
+        h1 { margin-bottom: 5px; font-size: 28px; color: #ff9f0a; }
+        h2 { font-size: 20px; margin: 10px 0; }
+        p { color: #aeaeb2; font-size: 15px; margin-bottom: 15px; }
+
+        .container { width: 100%; max-width: 450px; flex-grow: 1; display: flex; flex-direction: column; }
+        .hidden { display: none !important; }
+
+        /* Knoppen & Inputs */
+        input[type="text"] {
+            width: 100%; padding: 15px; margin: 5px 0;
+            border-radius: 12px; border: none; background: #2c2c2e;
+            color: white; font-size: 18px; box-sizing: border-box; text-align: center;
+        }
+        button {
+            width: 100%; padding: 15px; margin-top: 10px;
+            border-radius: 12px; border: none; font-size: 18px; font-weight: bold;
+            cursor: pointer; transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.98); }
+        .btn-primary { background-color: #0a84ff; color: white; }
+        .btn-success { background-color: #30d158; color: white; }
+        .btn-danger { background-color: #ff453a; color: white; }
+        .btn-secondary { background-color: #3a3a3c; color: white; }
+        .btn-vote { background-color: #ff9f0a; color: white; margin-top:0; width: auto; padding: 8px 15px; font-size: 14px;}
+
+        /* Lijsten */
+        ul { list-style: none; padding: 0; margin: 0; width: 100%; }
+        li {
+            background: #2c2c2e; margin-bottom: 8px; padding: 12px;
+            border-radius: 10px; display: flex; flex-direction: column;
+            align-items: flex-start; font-size: 16px; position: relative;
+        }
+        .li-header { display: flex; justify-content: space-between; width: 100%; align-items: center; }
+        .word-history { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+        .word-badge { background: #48484a; font-size: 13px; padding: 4px 8px; border-radius: 6px; color: #eee; }
+        
+        .active-turn { border: 2px solid #0a84ff; box-shadow: 0 0 10px rgba(10, 132, 255, 0.3); }
+
+        /* Settings Box */
+        .settings-box {
+            background: #2c2c2e; padding: 15px; border-radius: 12px; margin: 10px 0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .counter-controls button { width: 40px; height: 40px; margin: 0 5px; padding: 0; border-radius: 50%; }
+        
+        /* --- FLIP CARD --- */
+        .card-container {
+            perspective: 1000px; width: 100%; height: 180px; margin: 20px 0; cursor: pointer;
+        }
+        .card-inner {
+            position: relative; width: 100%; height: 100%; text-align: center;
+            transition: transform 0.6s; transform-style: preserve-3d;
+        }
+        .card-container.flipped .card-inner { transform: rotateY(180deg); }
+        
+        .card-front, .card-back {
+            position: absolute; width: 100%; height: 100%;
+            -webkit-backface-visibility: hidden; backface-visibility: hidden;
+            border-radius: 15px; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
+        }
+        
+        .card-front { background-color: #2c2c2e; border: 2px solid #3a3a3c; }
+        .card-back { background-color: #1c1c1e; border: 2px solid #ff9f0a; transform: rotateY(180deg); }
+        
+        .secret-word { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+        .secret-role { color: #8e8e93; font-size: 14px; }
+
+        /* Status Bar */
+        .status-bar { background: #3a3a3c; padding: 8px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; font-size: 14px;}
+
+        /* --- CUSTOM MODAL (Vervanging voor Alerts) --- */
+        #modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #modal-overlay.active { opacity: 1; pointer-events: all; }
+        
+        .modal-box {
+            background: #1c1c1e; width: 85%; max-width: 350px;
+            padding: 25px; border-radius: 20px; text-align: center;
+            border: 1px solid #3a3a3c; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .modal-title { font-size: 22px; font-weight: bold; color: #ff9f0a; margin-bottom: 10px; }
+        .modal-text { font-size: 16px; color: #fff; margin-bottom: 20px; line-height: 1.5; white-space: pre-line; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: center; }
+        .modal-buttons button { margin-top: 0; }
+
+    </style>
+</head>
+<body>
+
+    <div id="modal-overlay">
+        <div class="modal-box">
+            <div id="modal-title" class="modal-title">Melding</div>
+            <div id="modal-text" class="modal-text">...</div>
+            <div id="modal-buttons" class="modal-buttons">
+                </div>
+        </div>
+    </div>
+
+    <h1>🕵️ Undercover Pro</h1>
+    <p id="status-msg">Kies een optie om te beginnen</p>
+
+    <div class="container">
+        <div id="screen-start">
+            <input type="text" id="my-name" placeholder="Jouw Naam" maxlength="12">
+            <button class="btn-primary" onclick="setupHost()">🏠 Host Nieuw Spel</button>
+            <div style="display:flex; gap:10px; align-items: center; margin-top: 15px;">
+                <input type="text" id="join-code" placeholder="Code (4 cijfers)" maxlength="4" style="margin:0;">
+                <button class="btn-secondary" style="margin:0;" onclick="joinGame()">🔗 Join</button>
+            </div>
+        </div>
+
+        <div id="screen-host-lobby" class="hidden">
+            <div style="font-size: 40px; letter-spacing: 5px; color: #0a84ff; font-weight:bold; font-family:monospace;" id="host-code-display">...</div>
+            <p>Deel code met vrienden</p>
+            
+            <h3>Spelers (<span id="player-count">1</span>)</h3>
+            <ul id="host-player-list"></ul>
+
+            <h3>Instellingen</h3>
+            <div class="settings-box">
+                <span>⚪ Mr. White</span>
+                <div class="counter-controls">
+                    <button class="btn-secondary" onclick="adjustRole('white', -1)">-</button>
+                    <span id="count-white">1</span>
+                    <button class="btn-secondary" onclick="adjustRole('white', 1)">+</button>
+                </div>
+            </div>
+            <div class="settings-box">
+                <span>🕵️ Undercover</span>
+                <div class="counter-controls">
+                    <button class="btn-secondary" onclick="adjustRole('undercover', -1)">-</button>
+                    <span id="count-undercover">1</span>
+                    <button class="btn-secondary" onclick="adjustRole('undercover', 1)">+</button>
+                </div>
+            </div>
+            <div class="settings-box">
+                <span>🎲 Mr. White kan starten?</span>
+                <input type="checkbox" id="setting-white-start" style="width: 20px; height: 20px;">
+            </div>
+
+            <button class="btn-success" onclick="startGame()">🚀 Start Spel</button>
+        </div>
+
+        <div id="screen-client-lobby" class="hidden">
+            <h2>Wachten op Host...</h2>
+            <ul id="client-player-list"></ul>
+        </div>
+
+        <div id="screen-game" class="hidden">
+            <div class="card-container" id="role-card" onclick="this.classList.toggle('flipped')">
+                <div class="card-inner">
+                    <div class="card-front">
+                        <span style="font-size:40px;">🕵️</span>
+                        <p style="margin-top:10px;">Tik om rol te onthullen</p>
+                    </div>
+                    <div class="card-back">
+                        <div id="my-secret-word" class="secret-word">...</div>
+                        <div id="my-role-desc" class="secret-role">...</div>
+                        <p style="font-size:12px; margin-top:15px; opacity:0.6;">Tik om te verbergen</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-bar" id="game-status">Ronde 1 - Beschrijven</div>
+
+            <div id="turn-input-area" class="hidden" style="margin-bottom: 20px; background: #2c2c2e; padding: 15px; border-radius: 10px; border: 2px solid #0a84ff;">
+                <p style="color: #0a84ff; margin-bottom:5px;">📢 Het is jouw beurt!</p>
+                <input type="text" id="my-word-input" placeholder="Typ jouw woord..." onkeydown="if(event.key === 'Enter') submitWord()">
+                <button class="btn-primary" onclick="submitWord()" style="margin-top:5px;">Verstuur</button>
+            </div>
+
+            <ul id="game-player-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        // --- VARIABELEN ---
+        let myName = "";
+        let myPeerId = null;
+        let peer = null;
+        let connections = []; // Host: lijst van connecties
+        let conn = null; // Client: connectie met host
+        let isHost = false;
+
+        // Spel Status
+        let players = []; 
+        let settings = { white: 1, undercover: 1, whiteStarts: false };
+        let gameState = {
+            phase: 'LOBBY', // LOBBY, WORD, VOTE, END
+            round: 1,
+            turnIndex: 0,
+            votes: {} 
+        };
+
+        const wordPairs = [
+            { civ: "Hond", under: "Wolf" }, { civ: "Koffie", under: "Thee" },
+            { civ: "Facebook", under: "Instagram" }, { civ: "Piano", under: "Viool" },
+            { civ: "Sneeuw", under: "Hagel" }, { civ: "Wijn", under: "Bier" },
+            { civ: "Apple", under: "Samsung" }, { civ: "Strand", under: "Woestijn" },
+            { civ: "Tosti", under: "Sandwich" }, { civ: "Bioscoop", under: "Netflix" }
+        ];
+
+        // --- NETWERK SETUP ---
+        function generateId() { return Math.floor(1000 + Math.random() * 9000).toString(); }
+
+        function setupHost() {
+            myName = document.getElementById('my-name').value.trim() || "Host";
+            const code = generateId();
+            document.getElementById('status-msg').innerText = "Kamer maken...";
+            
+            peer = new Peer("uc-game-" + code);
+            peer.on('open', (id) => {
+                isHost = true;
+                myPeerId = id;
+                document.getElementById('host-code-display').innerText = code;
+                players.push({ id: myPeerId, name: myName, isHost: true, alive: true, words: [], role: '' });
+                switchScreen('screen-host-lobby');
+                updateLobbyUI();
+            });
+            peer.on('connection', (c) => {
+                connections.push(c);
+                c.on('data', (data) => handleDataHost(c, data));
+                c.on('close', () => removePlayer(c.peer));
+            });
+        }
+
+        function joinGame() {
+            myName = document.getElementById('my-name').value.trim() || "Speler";
+            const code = document.getElementById('join-code').value.trim();
+            if(code.length !== 4) return showAlert("Code moet 4 cijfers zijn.");
+            
+            document.getElementById('status-msg').innerText = "Verbinden...";
+            peer = new Peer();
+            peer.on('open', (id) => {
+                myPeerId = id;
+                conn = peer.connect("uc-game-" + code);
+                conn.on('open', () => {
+                    conn.send({ type: 'JOIN', name: myName });
+                    switchScreen('screen-client-lobby');
+                });
+                conn.on('data', (data) => handleDataClient(data));
+                conn.on('close', () => { showAlert("Verbinding met host verbroken.", () => location.reload()); });
+            });
+            peer.on('error', () => showAlert("Kan kamer niet vinden."));
+        }
+
+        // --- HOST LOGICA ---
+        function handleDataHost(c, data) {
+            if (data.type === 'JOIN') {
+                if(!players.find(p => p.id === c.peer)) {
+                    players.push({ id: c.peer, name: data.name, isHost: false, alive: true, words: [], role: '' });
+                }
+                broadcast({ type: 'LOBBY_UPDATE', players });
+                updateLobbyUI();
+            }
+            if (data.type === 'SUBMIT_WORD') {
+                const p = players.find(p => p.id === c.peer);
+                if (p && gameState.phase === 'WORD') {
+                    p.words.push(data.word);
+                    nextTurn();
+                }
+            }
+            if (data.type === 'VOTE') {
+                if (gameState.phase === 'VOTE') {
+                    if (!gameState.votes[data.targetId]) gameState.votes[data.targetId] = 0;
+                    gameState.votes[data.targetId]++;
+                    
+                    const totalVotes = Object.values(gameState.votes).reduce((a,b)=>a+b, 0);
+                    const aliveCount = players.filter(p => p.alive).length;
+                    
+                    if (totalVotes >= aliveCount) {
+                        endVotingRound();
+                    }
+                }
+            }
+        }
+
+        function removePlayer(id) {
+            players = players.filter(p => p.id !== id);
+            broadcast({ type: 'LOBBY_UPDATE', players });
+            updateLobbyUI();
+        }
+
+        function adjustRole(role, d) {
+            const total = players.length;
+            if (settings[role] + d < 0) return;
+            if (settings.white + settings.undercover + d >= total) return;
+            settings[role] += d;
+            updateLobbyUI();
+        }
+
+        function updateLobbyUI() {
+            document.getElementById('player-count').innerText = players.length;
+            document.getElementById('count-white').innerText = settings.white;
+            document.getElementById('count-undercover').innerText = settings.undercover;
+            document.getElementById('host-player-list').innerHTML = players.map(p => `<li>${p.name}</li>`).join('');
+        }
+
+        function startGame() {
+            if (players.length < 3) return showAlert("Minimaal 3 spelers!");
+            settings.whiteStarts = document.getElementById('setting-white-start').checked;
+
+            // Rollen verdelen
+            const pair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
+            let deck = [];
+            for(let i=0; i<settings.white; i++) deck.push('Mr. White');
+            for(let i=0; i<settings.undercover; i++) deck.push('Undercover');
+            while(deck.length < players.length) deck.push('Burger');
+            deck.sort(() => Math.random() - 0.5);
+
+            players.forEach((p, i) => {
+                p.role = deck[i];
+                p.word = (p.role === 'Burger') ? pair.civ : (p.role === 'Undercover' ? pair.under : "GEEN WOORD");
+                p.words = [];
+                p.alive = true;
+            });
+
+            // Startspeler
+            gameState.turnIndex = Math.floor(Math.random() * players.length);
+            if (!settings.whiteStarts) {
+                let attempts = 0;
+                while (players[gameState.turnIndex].role === 'Mr. White' && attempts < 20) {
+                    gameState.turnIndex = (gameState.turnIndex + 1) % players.length;
+                    attempts++;
+                }
+            }
+
+            gameState.phase = 'WORD';
+            gameState.round = 1;
+            gameState.votes = {};
+
+            broadcastGameUpdate();
+        }
+
+        function resetToLobby() {
+            // Reset status voor iedereen
+            players.forEach(p => {
+                p.alive = true;
+                p.words = [];
+                p.role = '';
+                p.word = '';
+            });
+            gameState.phase = 'LOBBY';
+            gameState.round = 1;
+
+            // Update host scherm
+            switchScreen('screen-host-lobby');
+            updateLobbyUI();
+
+            // Stuur commando naar clients
+            broadcast({ type: 'RESET_LOBBY', players });
+        }
+
+        function hostSubmitWord() {
+            const input = document.getElementById('my-word-input');
+            const word = input.value.trim();
+            if(!word) return;
+            
+            const me = players.find(p => p.id === myPeerId);
+            me.words.push(word);
+            input.value = '';
+            nextTurn();
+        }
+
+        function nextTurn() {
+            const alivePlayers = players.filter(p => p.alive);
+            const allHaveSpoken = alivePlayers.every(p => p.words.length === gameState.round);
+
+            if (allHaveSpoken) {
+                startVotingPhase();
+                return;
+            }
+
+            let checked = 0;
+            let current = gameState.turnIndex;
+            do {
+                current = (current + 1) % players.length;
+                if (players[current].alive && players[current].words.length < gameState.round) {
+                    gameState.turnIndex = current;
+                    break;
+                }
+                checked++;
+            } while (checked < players.length * 2);
+
+            broadcastGameUpdate();
+        }
+
+        function startVotingPhase() {
+            gameState.phase = 'VOTE';
+            gameState.votes = {};
+            broadcastGameUpdate();
+        }
+
+        function endVotingRound() {
+            let maxVotes = -1;
+            let candidates = [];
+            
+            for (const [pid, count] of Object.entries(gameState.votes)) {
+                if (count > maxVotes) {
+                    maxVotes = count;
+                    candidates = [pid];
+                } else if (count === maxVotes) {
+                    candidates.push(pid);
+                }
+            }
+
+            let eliminatedName = null;
+            let eliminatedRole = null;
+
+            if (candidates.length === 1) {
+                const victim = players.find(p => p.id === candidates[0]);
+                if (victim) {
+                    victim.alive = false;
+                    eliminatedName = victim.name;
+                    eliminatedRole = victim.role;
+                }
+            }
+
+            // Check Winnaar
+            const whites = players.filter(p => p.role === 'Mr. White' && p.alive).length;
+            const unders = players.filter(p => p.role === 'Undercover' && p.alive).length;
+            const burgers = players.filter(p => p.role === 'Burger' && p.alive).length;
+
+            let winner = null;
+            if (whites === 0 && unders === 0) winner = "BURGERS";
+            else if (burgers <= 1) winner = "SLECHTERIKEN";
+
+            broadcast({ type: 'ROUND_END', eliminatedName, eliminatedRole, winner, players });
+
+            // Host Alert Handling
+            let msg = eliminatedName ? `${eliminatedName} is geëlimineerd!\nRol: ${eliminatedRole}` : "Gelijkspel! Niemand eruit.";
+            
+            if (winner) {
+                msg += `\n\n🏆 ${winner} HEBBEN GEWONNEN!`;
+                showModal(msg, [
+                    { text: "Terug naar Lobby", class: "btn-primary", action: () => resetToLobby() }
+                ]);
+            } else {
+                showAlert(msg, () => {
+                    gameState.round++;
+                    gameState.phase = 'WORD';
+                    let nextIdx = (gameState.turnIndex + 1) % players.length;
+                    while(!players[nextIdx].alive) nextIdx = (nextIdx + 1) % players.length;
+                    gameState.turnIndex = nextIdx;
+                    broadcastGameUpdate();
+                });
+            }
+        }
+
+        function broadcastGameUpdate() {
+            const data = { type: 'GAME_UPDATE', players, gameState, me: null };
+            renderGameScreen(players.find(p => p.id === myPeerId), data);
+            connections.forEach(c => {
+                c.send({ ...data, me: players.find(p => p.id === c.peer) });
+            });
+        }
+
+        function broadcast(msg) { connections.forEach(c => c.send(msg)); }
+
+        // --- CLIENT LOGICA ---
+        function handleDataClient(data) {
+            if (data.type === 'LOBBY_UPDATE') {
+                document.getElementById('client-player-list').innerHTML = data.players.map(p => `<li>${p.name}</li>`).join('');
+            }
+            if (data.type === 'RESET_LOBBY') {
+                players = data.players;
+                switchScreen('screen-client-lobby');
+            }
+            if (data.type === 'GAME_UPDATE') {
+                players = data.players;
+                gameState = data.gameState;
+                renderGameScreen(data.me, data);
+            }
+            if (data.type === 'ROUND_END') {
+                players = data.players;
+                let msg = data.eliminatedName ? `${data.eliminatedName} is geëlimineerd!\nRol: ${data.eliminatedRole}` : "Gelijkspel! Niemand eruit.";
+                if (data.winner) {
+                    msg += `\n\n🏆 ${data.winner} HEBBEN GEWONNEN!`;
+                    showModal(msg, [{ text: "Wachten op Host...", class: "btn-secondary", action: () => closeModal() }]);
+                } else {
+                    showAlert(msg);
+                }
+            }
+        }
+
+        function submitWord() {
+            const input = document.getElementById('my-word-input');
+            const word = input.value.trim();
+            if (!word) return;
+
+            if (isHost) hostSubmitWord();
+            else {
+                conn.send({ type: 'SUBMIT_WORD', word });
+                input.value = '';
+                document.getElementById('turn-input-area').classList.add('hidden');
+            }
+        }
+
+        function sendVote(targetId) {
+            showConfirm("Weet je zeker dat je op deze speler wilt stemmen?", () => {
+                if (isHost) handleDataHost(null, { type: 'VOTE', targetId });
+                else conn.send({ type: 'VOTE', targetId });
+                
+                document.querySelectorAll('.btn-vote').forEach(b => b.classList.add('hidden'));
+                document.getElementById('game-status').innerText = "Wachten op anderen...";
+            });
+        }
+
+        // --- UI & MODAL FUNCTIES ---
+        function switchScreen(id) {
+            document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+            document.getElementById('status-msg').classList.add('hidden');
+            // Reset kaart status bij scherm wissel
+            document.getElementById('role-card').classList.remove('flipped');
+        }
+
+        function showModal(text, buttons = []) {
+            const overlay = document.getElementById('modal-overlay');
+            document.getElementById('modal-text').innerText = text;
+            const btnContainer = document.getElementById('modal-buttons');
+            btnContainer.innerHTML = '';
+
+            if (buttons.length === 0) {
+                // Default OK button
+                const btn = document.createElement('button');
+                btn.innerText = "OK";
+                btn.className = "btn-primary";
+                btn.style.width = "100px";
+                btn.onclick = closeModal;
+                btnContainer.appendChild(btn);
+            } else {
+                buttons.forEach(b => {
+                    const btn = document.createElement('button');
+                    btn.innerText = b.text;
+                    btn.className = b.class || "btn-primary";
+                    btn.onclick = () => { closeModal(); if(b.action) b.action(); };
+                    btnContainer.appendChild(btn);
+                });
+            }
+            overlay.classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+        }
+
+        function showAlert(msg, callback) {
+            showModal(msg, [{ text: "OK", action: callback }]);
+        }
+
+        function showConfirm(msg, onYes) {
+            showModal(msg, [
+                { text: "Annuleren", class: "btn-secondary", action: null },
+                { text: "Ja", class: "btn-primary", action: onYes }
+            ]);
+        }
+
+        function renderGameScreen(me, data) {
+            switchScreen('screen-game');
+            
+            // 1. Flip Card
+            const wordEl = document.getElementById('my-secret-word');
+            const descEl = document.getElementById('my-role-desc');
+            if (me.role === 'Mr. White') {
+                wordEl.innerText = "GEEN WOORD";
+                wordEl.style.color = "#ff453a";
+                descEl.innerText = "Jij bent Mr. White. Raad het woord!";
+            } else {
+                wordEl.innerText = me.word;
+                wordEl.style.color = "#fff";
+                descEl.innerText = `Jij bent ${me.role}`;
+            }
+
+            // 2. Status
+            const statusDiv = document.getElementById('game-status');
+            if (gameState.phase === 'WORD') statusDiv.innerText = `Ronde ${gameState.round} - Woorden noemen`;
+            else if (gameState.phase === 'VOTE') statusDiv.innerText = `Ronde ${gameState.round} - STEMMEN!`;
+            else statusDiv.innerText = "Spel Afgelopen";
+
+            // 3. Input
+            const inputArea = document.getElementById('turn-input-area');
+            const isMyTurn = (players[gameState.turnIndex].id === me.id) && gameState.phase === 'WORD';
+            
+            if (isMyTurn && me.alive) {
+                inputArea.classList.remove('hidden');
+                setTimeout(() => document.getElementById('my-word-input').focus(), 100);
+            } else {
+                inputArea.classList.add('hidden');
+            }
+
+            // 4. Lijst
+            const list = document.getElementById('game-player-list');
+            list.innerHTML = players.map(p => {
+                const isCurrentTurn = (players[gameState.turnIndex].id === p.id && gameState.phase === 'WORD');
+                const wordsHtml = p.words.map(w => `<span class="word-badge">${w}</span>`).join('');
+                
+                let actionBtn = "";
+                if (gameState.phase === 'VOTE' && me.alive && p.alive && p.id !== me.id) {
+                    actionBtn = `<button class="btn-vote" onclick="sendVote('${p.id}')">Stem</button>`;
+                }
+                
+                let statusIcon = p.alive ? "" : "💀";
+                let activeClass = isCurrentTurn ? "active-turn" : "";
+                
+                if (!p.alive) return `<li class="eliminated">${p.name} ${statusIcon} <div class="word-history">${wordsHtml}</div></li>`;
+
+                return `
+                <li class="${activeClass}">
+                    <div class="li-header">
+                        <strong>${p.name}</strong>
+                        ${actionBtn}
+                    </div>
+                    <div class="word-history">${wordsHtml}</div>
+                </li>`;
+            }).join('');
+        }
+    </script>
+</body>
+</html>
